@@ -89,3 +89,12 @@ def config(mac):
             raise ServerResponceError
     except:
         raise RequestsError
+
+# Function to get device's mac
+def get_MAC():
+    # Return the MAC address of interface
+    try:
+        str = open('/sys/class/net/eth0/address').read()
+    except:
+        str = "00:00:00:00:00:00"
+    return str[0:17]

@@ -71,6 +71,12 @@ def axis_ordering(means):
     else:
         return [0, 1, 2]
 
+def rms_check(rms, edge):
+    for  a in rms:
+        for b in a:
+            if b>edge:
+                return True
+    return False
 
 def read_signals(period):
     add1 = 0x68

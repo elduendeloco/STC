@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# UPDATE - i file vengono salvati su smarttowercontrol.it
+
 import json
 import os
 import time
@@ -8,39 +8,39 @@ import math
 import requests
 import mpu
 import stc
+import threading
 
+lock_acq = threading.Lock()
+lock_check = threading.Lock()
 
-# Function to order axis
-def axis_ordering(means):
-    if abs(data[0]) > abs(means[1]) and abs(means[0]) > abs(means[2]):
-        return [1, 2, 0]
-    elif abs(means[1]) > abs(means[0]) and abs(means[1]) > abs(means[2]):
-        return [2, 0, 1]
-    else:
-        return [0, 1, 2]
+## ACQUISIZIONE DEI DATI DAI SENSORI ##
 
+def acquisition_prog(duration, interval):
+    with lock_acq:
+        threading.Timer(r_interval*60, acquisition_prog, [duration, interval]).start()
+        a_data=mpu.read_signals(duration)
+        if mpu.rms_check(a_data[2], best_rms):
+            best_data=a_data
 
-# Function to get device's mac
-def get_MAC():
-    # Return the MAC address of interface
-    try:
-        str = open('/sys/class/net/eth0/address').read()
-    except:
-        str = "00:00:00:00:00:00"
-    return str[0:17]
+def status_check(refresh):
+    with lock_check:
+        threading.Timer(refresh, status_check).start()
+        status=stc.status()
+        if status=="test":
+            a_data = mpu.read_signals(r_duration)
+            msg = {'MAC_Address': mac, 'tipo_test': 1, 'Date': a_data[4][1], 'Hour': a_data[4][0], 'Validation': validation,
+                   'Frequency Mean': math.fr_mean(a_data[5][0]), 'Temperature': {'Start': a_data[3][0], 'End': a_data[3][1]},
+                   'Signals': [
+                       {'id': id[0], 'X': {'RMS': a_data[2][0][0], 'Mean': a_data[1][0][0], 'Data': a_data[0][0][0]},
+                        'Y': {'RMS': a_data[2][0][1], 'Mean': a_data[1][0][1], 'Data': a_data[0][0][1]},
+                        'Z': {'RMS': a_data[2][0][2], 'Mean': a_data[1][0][2], 'Data': a_data[0][0][2]}},
+                       {'id': id[1], 'X': {'RMS': a_data[2][1][0]], 'Mean': a_data[1][1][0], 'Data': a_data[0][1][0]},
+                        'Y': {'RMS': a_data[2][1][1], 'Mean': a_data[1][1][1], 'Data': a_data[0][1][1]},
+                        'Z': {'RMS': a_data[2][1][2], 'Mean': a_data[1][1][2], 'Data': a_data[0][1][2]}}], 'Time': a_data[5]}
+            stc.send(a_data)
+        else if status=="config"
 
-
-
-
-
-
-
-freq = []
-
-mac = get_MAC()
-n_unit = 2
-
-###### READ CONF ######
+## LEGGO CONFIGURAZIONE ##
 path = os.path.dirname(os.path.realpath(__file__))
 
 with open(path + "/config.json", "R") as file:
@@ -55,93 +55,21 @@ with open(path + "/config.json", "R") as file:
     req_acq=dati["req_ack"]
     registered=dati["registered"]
 
+mac = stc.get_MAC()
 
-
-
-
-
-
-
-try:
-    reg=stc.registered()
-    if reg[0]
-        r = requests.post("http://78.47.195.213/api/register2", data={'n_unit': n_unit, 'mac_address': mac})
-        if r.ok:
-            content = json.loads(r.content)
-            if content["description"] == "OK":
-                data["req_ack"] = "true"
-except:
-    print "Error: Connessione register2"
-    while not data["registered"]:
-        try:
-            r = requests.get("http://78.47.195.213/api/registered", params={'mac_address': mac})
-            if r.ok:
-                content = json.loads(r.content)
-                if content["success"]:
-                    data["unit"]["ID"] = content["units"]
-                    data["registered"] = "true"
-        except:
-            print "Error: Connessione registered"
+## CONTROLLO REGISTRAZIONE ##
+if not req_acq:
+    if stc.register(2, mac):
+        req_acq=True
+    while not registered:
+        r=registered(mac)
+        if r[0]:
+            registered=True
+            id=r[1]
+        else:
             time.sleep(60)
 
+## CREO LA TEMPORIZZAZIONE DELLE ACQUISIZIONI ##
+acquisition_prog(r_duration, r_interval)
+status_check(refresh_time)
 
-            ###### LOAD CONF #######
-    id = data["unit"]["ID"]
-    durata = data["acquisition"]["time"]
-    rms_edge = data["acquisition"]["rms_edge"]
-
-# best list
-## TM2 temp
-## dtm2 send_time
-## dtt2 read_time
-## sensor_read
-
-
-flag = 1
-
-
-print "Inizia Ciclo"
-while True:
-
-    ########################### Verifica richiesta ###########################################
-
-    while flag == 1:
-        status = stc.status(mac)
-        if status=="test":
-            try:
-                signals, means, rms, temp, date, hour, frequence = mpu.read_signals(durata)
-
-            except:
-                sensor_error=True
-            validation = "OK"
-            data = {'MAC_Address': mac, 'tipo_test': 1, 'Date': date, 'Hour': hour, 'Validation': validation,
-                'Frequency Mean': math.fr_mean(frequence), 'Temperature': {'Start': temp[0], 'End': temp[1]}, 'Signals': [
-                {'id': id[0], 'X': {'RMS': rms[0][0], 'Mean': means[0][0], 'Data': signals[0][0]},
-                 'Y': {'RMS': rms[0][1], 'Mean': means[0][1], 'Data': signals[0][1]},
-                 'Z': {'RMS': rms[0][2], 'Mean': means[0][2], 'Data': signals[0][2]}},
-                {'id': id[1], 'X': {'RMS': rms[1][0], 'Mean': means[1][0], 'Data': signals[1][0]},
-                 'Y': {'RMS': rms[1][1], 'Mean': means[1][1], 'Data': signals[1][1]},
-                 'Z': {'RMS': rms[1][2], 'Mean': means[1][2], 'Data': signals[1][2]}}], 'Time': frequence}
-            try:
-                stc.send(data)
-            except:
-                print("make a log")
-        elif status=="config":
-            path = os.path.dirname(os.path.realpath(__file__))
-            with open(path + '/config.json') as data_file:
-                data = json.load(data_file)
-                try:
-                    config=stc.config(mac)
-
-
-
-
-
-    flag = 1
-    test = 0
-    '''
-    finame = "" + currday + "_" + currtime + ".json"
-    with open(path + "/" + finame, "w") as file:
-        file = data
-    print finame + " creato con succeso"
-    '''
